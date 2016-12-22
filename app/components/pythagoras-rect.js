@@ -1,25 +1,28 @@
 import Ember from 'ember';
 import d3Scale from 'npm:d3-scale';
 import memoizedCalc from '../utils/memoized-calc';
+import layout from '../templates/components/pythagoras-rect';
 
-const { Component, computed, String: { htmlSafe } } = Ember;
+const { Component, String: { htmlSafe } } = Ember;
 const { interpolateViridis } = d3Scale;
 
 export default Component.extend({
+  layout,
   tagName: '',
 
-  result: computed('w', 'heightFactor', 'lean', function() {
-    let args = this.getProperties('w', 'heightFactor', 'lean');
-    return memoizedCalc(args);
-  }),
+  recalculateParams() {
+    let { x, y, left, right, lvl, maxlvl, w, heightFactor, lean } = this;
+    let args = { w, heightFactor, lean };
+    let { A, B, nextLeft, nextRight } = memoizedCalc(args);
 
-  nextRight: computed.readOnly('result.nextRight'),
-  nextLeft: computed.readOnly('result.nextLeft'),
-  A: computed.readOnly('result.A'),
-  B: computed.readOnly('result.B'),
+    let nextYLeft = - nextLeft;
+    let nextXRight = w - nextRight;
+    let nextYRight = - nextRight;
+    let nextLvl = lvl + 1;
 
-  transformStyle: computed('x', 'y', 'left', 'right', 'w', 'A', 'B', function() {
-    let { x, y, left, right, w, A, B } = this.getProperties('x', 'y', 'left', 'right', 'w', 'A', 'B');
+    let shouldRender = lvl < maxlvl && w >= 1;
+    let squareFillStyle = htmlSafe(`fill: ${interpolateViridis(lvl / maxlvl)}`);
+
     let rotate = '';
 
     if (left) {
@@ -28,35 +31,30 @@ export default Component.extend({
       rotate = `rotate(${B} ${w} ${w})`;
     }
 
-    return `translate(${x} ${y}) ${rotate}`;
-  }),
+    let transformStyle = `translate(${x} ${y}) ${rotate}`;
+    let props = {
+      nextLvl,
+      nextLeft,
+      nextRight,
+      nextYLeft,
+      nextXRight,
+      nextYRight,
+      shouldRender,
+      squareFillStyle,
+      transformStyle
+    };
 
-  squareFillStyle: computed('lvl', 'maxlvl', function() {
-    let { lvl, maxlvl } = this.getProperties('lvl', 'maxlvl');
-    return htmlSafe(`fill: ${interpolateViridis(lvl / maxlvl)}`);
-  }),
+    this.setProperties(props);
+  },
 
-  nextXLeft: 0,
-  nextYLeft: computed('nextLeft', function() {
-    return -this.get('nextLeft');
-  }),
+  init() {
+    this._super();
+    this.nextXLeft = 0;
+  },
 
-  nextXRight: computed('w', 'nextRight', function() {
-    let { w, nextRight } = this.getProperties('w', 'nextRight');
-    return w - nextRight;
-  }),
-
-  nextYRight: computed('nextRight', function() {
-    return -this.get('nextRight');
-  }),
-
-  nextLvl: computed('lvl', function() {
-    return this.get('lvl') + 1;
-  }),
-
-  shouldRender: computed('lvl', 'w', 'maxlvl', function() {
-    let { lvl, w, maxlvl } = this.getProperties('lvl', 'w', 'maxlvl');
-    return lvl < maxlvl && w >= 1;
-  })
+  didReceiveAttrs(attrs) {
+    this._super(attrs);
+    this.recalculateParams();
+  }
 
 });
